@@ -2,63 +2,97 @@ import streamlit as st
 import pandas as pd
 import streamlit_authenticator as stauth
 from supabase import create_client
-import io
+import bcrypt
 
 # Page Configuration
 st.set_page_config(page_title="Civil Engineering BOQ System", layout="wide")
 
-# 1. Database Connection Configuration
+# --- 1. DATABASE CONNECTION ---
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
-# 2. Secure User Authentication Setups
-# Pre-defined user credentials (admin123 is the password for these two)
-if "credentials" not in st.session_state:
-    st.session_state.credentials = {
-        "usernames": {
-            "civil_eng": {
-                "name": "Juan Dela Cruz", 
-                "password": "$2b$12$L7Cg4b.uYmZJ3vEwE9gOfe6gKjBvZKq8vYwXWvUu6z9l8q7M6fO2K"
-            },
-            "project_mgr": {
-                "name": "Maria Clara", 
-                "password": "$2b$12$L7Cg4b.uYmZJ3vEwE9gOfe6gKjBvZKq8vYwXWvUu6z9l8q7M6fO2K"
+# --- 2. AUTHENTICATION HELPER FUNCTIONS ---
+def fetch_all_users():
+    """Fetches all users from Supabase to construct the credentials dict."""
+    try:
+        response = supabase.table("profiles").select("username, name, password").execute()
+        users_data = response.data
+        
+        credentials = {"usernames": {}}
+        for user in users_data:
+            credentials["usernames"][user["username"]] = {
+                "name": user["name"],
+                "password": user["password"]  # Already hashed in database
             }
-        }
-    }
+        return credentials
+    except Exception as e:
+        st.error(f"Error fetching users: {e}")
+        return {"usernames": {}}
+
+def hash_password(password: str) -> str:
+    """Hashes a plain text password using bcrypt."""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+# --- 3. DYNAMIC AUTHENTICATION SETUP ---
+credentials = fetch_all_users()
 
 authenticator = stauth.Authenticate(
-    st.session_state.credentials,
+    credentials,
     cookie_name="boq_auth_cookie",
     key="signature_key_secret",
     cookie_expiry_days=30
 )
 
-# Render Login Widget on the Main Screen
-name, authentication_status, username = authenticator.login(location='main')
-
-if authentication_status == False:
-    st.error('Username/password is incorrect')
-elif authentication_status == None:
-    st.warning('Please enter your username and password')
+# --- 4. SIGN IN / SIGN UP INTERFACE ---
+if not st.session_state.get("authentication_status"):
+    # Create tabs for Login and Registration
+    tab1, tab2 = st.tabs(["🔐 Log In", "📝 Sign Up"])
     
-    # --- INTEGRATED REGISTRATION/SIGN-UP FORM ---
-    st.markdown("---")
-    st.subheader("📝 Create a New Account")
-    try:
-        # Renders the registration widget
-        email_of_registered_user, username_of_registered_user, name_of_registered_user = authenticator.register_user(location='main', pre_authorization=False)
-        if username_of_registered_user:
-            st.success('Account created successfully! You can now log in above.')
-            # Update the configuration tracking so the new user is recognized instantly
-            st.session_state.credentials = authenticator.credentials
-    except Exception as e:
-        st.error(f"Registration Error: {e}")
+    with tab1:
+        name, authentication_status, username = authenticator.login(location="main")
+        if authentication_status == False:
+            st.error('Username/password is incorrect')
+        elif authentication_status == None:
+            st.warning('Please enter your username and password')
+            
+    with tab2:
+        st.subheader("Create a New Account")
+        new_username = st.text_input("Choose a Username", key="reg_user").strip().lower()
+        new_name = st.text_input("Full Name (e.g., Juan Dela Cruz)", key="reg_name").strip()
+        new_password = st.text_input("Password", type="password", key="reg_pass")
+        confirm_password = st.text_input("Confirm Password", type="password", key="reg_confirm")
+        
+        if st.button("Register Account", use_container_width=True):
+            if not new_username or not new_name or not new_password:
+                st.error("All fields are required!")
+            elif new_password != confirm_password:
+                st.error("Passwords do not match!")
+            elif len(new_password) < 6:
+                st.error("Password must be at least 6 characters long.")
+            else:
+                # Check if username already exists
+                existing = supabase.table("profiles").select("username").eq("username", new_username).execute()
+                if existing.data:
+                    st.error("Username already taken. Please choose another.")
+                else:
+                    # Hash and save to database
+                    hashed_pw = hash_password(new_password)
+                    supabase.table("profiles").insert({
+                        "username": new_username,
+                        "name": new_name,
+                        "password": hashed_pw
+                    }).execute()
+                    st.success("Registration successful! You can now log in on the first tab.")
+                    st.rerun()
 
-elif authentication_status:
+# --- 5. MAIN SYSTEM RUNS ONLY IF LOGGED IN ---
+if st.session_state.get("authentication_status"):
+    # Get active session info
+    username = st.session_state["username"]
+    name = st.session_state["name"]
     
-    # --- MAIN SYSTEM RUNS ONLY IF LOGGED IN ---
     authenticator.logout('Logout', 'sidebar')
     st.title(f"🏗️ Project Cost Estimate System")
     st.subheader(f"Welcome back, Engr. {name}")
@@ -100,10 +134,10 @@ elif authentication_status:
             
             if st.button("Load Selected Project"):
                 chosen_data = next(p for p in saved_projects if p["project_name"] == selected_project)
-                
-                # Fixed string parsing structure using io.StringIO to prevent FileNotFoundError
-                restored_df = pd.read_json(io.StringIO(chosen_data["boq_json"]))
-                
+                restored_df = pd.read_json(chosen_data["boq_json"])
+                # Ensure correct column ordering
+                if not restored_df.empty:
+                    restored_df = restored_df[["Item No.", "Item Description", "Unit", "Quantity", "Unit Cost", "Subtotal"]]
                 st.session_state.boq_data = restored_df
                 st.success(f"Successfully loaded '{selected_project}'!")
                 st.rerun()
