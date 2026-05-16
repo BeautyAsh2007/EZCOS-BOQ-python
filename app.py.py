@@ -51,7 +51,7 @@ if not st.session_state.get("authentication_status"):
     tab1, tab2 = st.tabs(["🔐 Log In", "📝 Sign Up"])
     
     with tab1:
-       authenticator.login(location='main')
+        authenticator.login(location='main')
 
         authentication_status = st.session_state.get("authentication_status")
         username = st.session_state.get("username")
