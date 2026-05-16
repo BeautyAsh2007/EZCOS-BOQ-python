@@ -51,11 +51,11 @@ if not st.session_state.get("authentication_status"):
     tab1, tab2 = st.tabs(["🔐 Log In", "📝 Sign Up"])
     
     with tab1:
-        name, authentication_status, username = authenticator.login(location="main")
-        if authentication_status == False:
-            st.error('Username/password is incorrect')
-        elif authentication_status == None:
-            st.warning('Please enter your username and password')
+       authenticator.login(location='main')
+
+authentication_status = st.session_state.get("authentication_status")
+username = st.session_state.get("username")
+name = st.session_state.get("name")
             
     with tab2:
         st.subheader("Create a New Account")
