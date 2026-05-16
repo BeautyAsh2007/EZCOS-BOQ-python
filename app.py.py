@@ -53,9 +53,9 @@ if not st.session_state.get("authentication_status"):
     with tab1:
        authenticator.login(location='main')
 
-authentication_status = st.session_state.get("authentication_status")
-username = st.session_state.get("username")
-name = st.session_state.get("name")
+        authentication_status = st.session_state.get("authentication_status")
+        username = st.session_state.get("username")
+        name = st.session_state.get("name")
             
     with tab2:
         st.subheader("Create a New Account")
