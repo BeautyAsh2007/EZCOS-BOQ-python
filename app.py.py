@@ -12,7 +12,7 @@ if "boq_data" not in st.session_state:
 
 #Imput Fields & Validation
 st.sidebar.header("Item Input Form")
-item_desc=st.sidebar.text_input("Item Description". placeholder=="e.g.,Concrete")
+item_desc=st.sidebar.text_input("Item Description", placeholder="e.g., Concrete")
 unit=st.sidebar.selectbox("unit", ["sqm", "pcs", "cu.m", "kg"])
 
 #Input validation: min_value=0.0 enforces negative values
