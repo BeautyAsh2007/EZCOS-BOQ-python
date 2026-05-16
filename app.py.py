@@ -19,10 +19,6 @@ unit=st.sidebar.selectbox("unit", ["sqm", "pcs", "cu.m", "kg"])
 quantity=st.sidebar.number_input("Quantity", min_value=0.0, step=1.0, value=0.0)
 unit_cost=st.sidebar.number_input("Unit Cost", min_value=0.0, step=1.0, value=0.0)
 
-#Instant computation helper
-current_subtotal=quantity*unit_cost
-st.sidebar.info(f"Instant Subtotal: \u20b1{current_subtotal:,.2f}")
-
 #Button actions
 col1, col2, col3=st.sidebar.columns(3)
 
@@ -33,6 +29,9 @@ if col1.button("➕ Add", use_container_width=True):
     elif quantity <= 0 or unit_cost <= 0:
         st.sidebar.error("Quantity and Unit Cost must be greater than 0!")
     else:
+        # Calculate the subtotal right here
+        calculated_subtotal=quantity*unit_cost
+        
         # Auto-numbering system based on length
         next_no = len(st.session_state.boq_data) + 1
         new_row = pd.DataFrame([{
